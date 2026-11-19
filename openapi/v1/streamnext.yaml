@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: StreamNext API
-  version: 0.3.0
+  version: 0.4.0
   description: REST contract for the StreamNext backend. Hand-written; the backend generates its server from this file.
 servers:
   - url: /
@@ -127,6 +127,71 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/apple:
+    post:
+      operationId: signInWithApple
+      summary: Sign in or sign up with an Apple identity token
+      description: |
+        The client sends the identity token from Sign in with Apple together with the raw nonce it used
+        (the server hashes it and compares it with the token's nonce claim). A known Apple account signs in;
+        an unknown one is linked to the existing account with the same verified email, or becomes a new
+        account. Linking to an account whose email was never verified first clears its password and
+        revokes its sessions. The session is device-bound with a 90-day refresh lifetime.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppleSignInRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/auth/google:
+    post:
+      operationId: signInWithGoogle
+      summary: Sign in or sign up with a Google ID token
+      description: Same account rules as Sign in with Apple. The token's audience must be one of the configured Google client ids (iOS, Android or web).
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleSignInRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /v1/auth/verify-email:
     post:
       operationId: verifyEmail
@@ -236,6 +301,51 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/devices/{deviceId}:
+    parameters:
+      - name: deviceId
+        in: path
+        required: true
+        description: The same client-generated id used when signing in
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: registerDevice
+      summary: Register or update this device's push (FCM) token
+      description: |
+        An FCM token belongs to one device row: if another user registers the same token (someone else
+        signed in on that device) it moves to them.
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '204':
+          description: Registered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      operationId: removeDevice
+      summary: Remove this device's push token
+      description: Idempotent. Always 204, whether or not the device was registered.
+      tags: [Devices]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Removed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/me:
     get:
       operationId: getMe
@@ -317,6 +427,12 @@ components:
             $ref: '#/components/schemas/Error'
     Forbidden:
       description: Authenticated, but not allowed (for example a wrong current password)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServiceUnavailable:
+      description: A dependency is unavailable, or the feature is not configured on this server
       content:
         application/json:
           schema:
@@ -466,6 +582,44 @@ components:
           type: string
           maxLength: 128
           description: Required for accounts that have a password
+    AppleSignInRequest:
+      type: object
+      required: [identityToken, nonce, deviceId]
+      properties:
+        identityToken:
+          type: string
+          description: The identity token (a JWT) from Sign in with Apple
+        nonce:
+          type: string
+          description: The raw nonce; its SHA-256 was sent to Apple with the authorization request
+        deviceId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          maxLength: 40
+          description: Apple shares the user's name only on the first authorization, via the client
+    GoogleSignInRequest:
+      type: object
+      required: [idToken, deviceId]
+      properties:
+        idToken:
+          type: string
+          description: The Google ID token (a JWT)
+        deviceId:
+          type: string
+          format: uuid
+    RegisterDeviceRequest:
+      type: object
+      required: [fcmToken, platform]
+      properties:
+        fcmToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        platform:
+          type: string
+          enum: [ios, android]
     Session:
       type: object
       required: [accessToken, refreshToken, expiresIn, user]
