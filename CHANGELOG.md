@@ -3,6 +3,10 @@
 Semver. Minor = new endpoint/feature, patch = fix, major = breaking contract change.
 The version is `info.version` in `openapi/v1/streamnext.yaml`.
 
+## 0.3.0 — 2026-11-19
+- Auth email flows and account (M1 slice 2): `POST /v1/auth/{verify-email,resend-verification,forgot-password,reset-password}`, `POST /v1/me/change-password`, `DELETE /v1/me`, and a shared 403 response.
+- Email links (implemented by the Web repo later): `{APP_BASE_URL}/verify-email?token=…` and `{APP_BASE_URL}/reset-password?token=…`.
+
 ## 0.2.0 — 2026-11-19
 - Auth core (M1 slice 1): `POST /v1/auth/{register,login,refresh,logout}`, `GET`/`PATCH /v1/me`, the `bearerAuth` scheme, and shared 400/401/409/429 responses.
 

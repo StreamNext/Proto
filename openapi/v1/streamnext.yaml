@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: StreamNext API
-  version: 0.2.0
+  version: 0.3.0
   description: REST contract for the StreamNext backend. Hand-written; the backend generates its server from this file.
 servers:
   - url: /
@@ -125,6 +125,115 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      summary: Confirm an email address with the token from the verification email
+      description: The token is single-use and valid for 24 hours. A token that is unknown, used, superseded or expired is a 400.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/resend-verification:
+    post:
+      operationId: resendVerification
+      summary: Send a new verification email
+      description: At most one email per address per 60 seconds; a request inside that window is accepted and sends nothing.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '202':
+          description: Accepted. The same answer is given whether or not the address belongs to an account.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      summary: Send a password-reset email
+      description: At most one email per address per 60 seconds. Accounts without a password (Apple/Google sign-in) receive nothing.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '202':
+          description: Accepted. The same answer is given whether or not the address belongs to an account.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/reset-password:
+    post:
+      operationId: resetPassword
+      summary: Set a new password with the token from the reset email
+      description: The token is single-use and valid for 1 hour. A weak password is rejected without consuming the token.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password changed; every refresh token of the user is revoked
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me/change-password:
+    post:
+      operationId: changePassword
+      summary: Change the signed-in user's password
+      description: A wrong current password is 403, not 401, so clients do not mistake it for an expired access token. Accounts without a password get 400.
+      tags: [Me]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed; all other sessions are revoked and a new session for this device is returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/me:
     get:
       operationId: getMe
@@ -164,6 +273,32 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    delete:
+      operationId: deleteMe
+      summary: Delete the signed-in user's account
+      description: |
+        Permanently deletes the account and everything that belongs to it. Accounts with a password must
+        send it (a wrong or missing password is 403); accounts without one need only the access token.
+      tags: [Me]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+      responses:
+        '204':
+          description: Account deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 components:
   securitySchemes:
     bearerAuth:
@@ -174,6 +309,12 @@ components:
   responses:
     BadRequest:
       description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated, but not allowed (for example a wrong current password)
       content:
         application/json:
           schema:
@@ -273,6 +414,56 @@ components:
         timezone:
           type: string
           description: IANA timezone name
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: From the link in the verification email
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          description: From the link in the reset email
+        newPassword:
+          type: string
+          minLength: 10
+          maxLength: 128
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword, deviceId]
+      properties:
+        currentPassword:
+          type: string
+          maxLength: 128
+        newPassword:
+          type: string
+          minLength: 10
+          maxLength: 128
+        deviceId:
+          type: string
+          format: uuid
+          description: The device that receives the new session
+        rememberMe:
+          type: boolean
+          default: false
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          maxLength: 128
+          description: Required for accounts that have a password
     Session:
       type: object
       required: [accessToken, refreshToken, expiresIn, user]
