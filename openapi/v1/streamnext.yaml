@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: StreamNext API
-  version: 0.1.0
+  version: 0.2.0
   description: REST contract for the StreamNext backend. Hand-written; the backend generates its server from this file.
 servers:
   - url: /
@@ -25,8 +25,285 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/auth/register:
+    post:
+      operationId: register
+      summary: Create an account and its first session
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/login:
+    post:
+      operationId: login
+      summary: Sign in with email and password
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/refresh:
+    post:
+      operationId: refresh
+      summary: Exchange a refresh token for a new session
+      description: |
+        Rotates the refresh token: the presented token is revoked and a new pair is returned.
+        Presenting an already-revoked token revokes every refresh token of that user, except
+        when it was rotated moments ago and its successor is unused (a lost response; the
+        server then issues a fresh pair).
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke a refresh token
+      description: Idempotent and needs no bearer token. Always returns 200, even for an unknown token.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logged out
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me:
+    get:
+      operationId: getMe
+      summary: Get the signed-in user's profile
+      tags: [Me]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: updateMe
+      summary: Update the signed-in user's profile
+      tags: [Me]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 15-minute access token from register, login or refresh.
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing, invalid or expired credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, deviceId]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          example: ana@example.com
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Defaults to the part of the email before the @
+        timezone:
+          type: string
+          description: IANA timezone name; defaults to UTC
+          example: America/Bogota
+        deviceId:
+          type: string
+          format: uuid
+          description: Client-generated, stable per install; binds the refresh token to the device
+        rememberMe:
+          type: boolean
+          default: false
+          description: Refresh token lasts 90 days instead of 24 hours
+    LoginRequest:
+      type: object
+      required: [email, password, deviceId]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        password:
+          type: string
+          maxLength: 128
+        deviceId:
+          type: string
+          format: uuid
+        rememberMe:
+          type: boolean
+          default: false
+    RefreshRequest:
+      type: object
+      required: [refreshToken, deviceId]
+      properties:
+        refreshToken:
+          type: string
+        deviceId:
+          type: string
+          format: uuid
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    UpdateProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 40
+        timezone:
+          type: string
+          description: IANA timezone name
+    Session:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: JWT, valid for expiresIn seconds
+        refreshToken:
+          type: string
+          description: Opaque; store it securely (iOS Keychain behind FaceID) and rotate on every use
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds
+          example: 900
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      required: [id, email, emailVerified, displayName, timezone]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        emailVerified:
+          type: boolean
+        displayName:
+          type: string
+        timezone:
+          type: string
     Health:
       type: object
       required: [status, version]
