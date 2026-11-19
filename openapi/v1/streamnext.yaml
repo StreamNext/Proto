@@ -81,9 +81,11 @@ paths:
       summary: Exchange a refresh token for a new session
       description: |
         Rotates the refresh token: the presented token is revoked and a new pair is returned.
-        Presenting an already-revoked token revokes every refresh token of that user, except
-        when it was rotated moments ago and its successor is unused (a lost response; the
-        server then issues a fresh pair).
+        Presenting a token that was already rotated revokes every refresh token of that user (a
+        copy has leaked), except when it was rotated moments ago and its successor is unused (a
+        lost response; the server then issues a fresh pair). A token revoked any other way (logout,
+        a newer login on the same device, a password change or reset) is simply a 401 and signs
+        nobody else out.
       tags: [Auth]
       security: []
       requestBody:
