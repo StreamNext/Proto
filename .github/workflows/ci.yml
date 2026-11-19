@@ -1,0 +1,17 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          token: ${{ secrets.BUF_TOKEN }}
+          # Push to BSR only from main; breaking checks off until the first release.
+          breaking: false
+          push: ${{ github.ref == 'refs/heads/main' }}
+      - run: npx --yes @redocly/cli@1.34.5 lint openapi/v1/streamnext.yaml

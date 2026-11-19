@@ -1,0 +1,8 @@
+extends:
+  - recommended
+rules:
+  # No public server or license/contact yet.
+  info-license: off
+  no-server-example.com: off
+  # Health check has no client-error case.
+  operation-4xx-response: off

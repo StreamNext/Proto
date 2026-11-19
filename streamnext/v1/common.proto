@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package streamnext.v1;
+
+option go_package = "github.com/StreamNext/Backend/gen/streamnext/v1;streamnextv1";
+
+// ApiError mirrors the REST Error schema in openapi/v1/streamnext.yaml.
+message ApiError {
+  string code = 1;
+  string message = 2;
+}

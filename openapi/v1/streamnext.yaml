@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info:
+  title: StreamNext API
+  version: 0.1.0
+  description: REST contract for the StreamNext backend. Hand-written; the backend generates its server from this file.
+servers:
+  - url: /
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      summary: Liveness and database check
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: Service and database are healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Database is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          description: Server version (semver)
+          example: 0.1.0
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code
+          example: unavailable
+        message:
+          type: string
+          description: Human-readable detail
