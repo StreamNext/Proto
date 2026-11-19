@@ -3,6 +3,9 @@
 Semver. Minor = new endpoint/feature, patch = fix, major = breaking contract change.
 The version is `info.version` in `openapi/v1/streamnext.yaml`.
 
+## 0.5.0 — 2026-11-19
+- Catalog (M2): `GET /v1/search/series`, `GET /v1/series/{seriesId}`, `GET /v1/series/{seriesId}/episodes` (the first integer path parameter and query parameters), a shared 404 response, and `language` (`en` | `es`) on the profile.
+
 ## 0.4.0 — 2026-11-19
 - Social sign-in and devices (M1 slice 3): `POST /v1/auth/apple`, `POST /v1/auth/google`, `PUT`/`DELETE /v1/devices/{deviceId}` (the first path parameter), and a shared 503 response.
 
